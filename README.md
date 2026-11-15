@@ -1,5 +1,5 @@
 # working
-+ sampler3: bi-traj, two kinds of $K_{0.5}$
++ sampler3: $K_{0.5}$, one step simulation to remove K_{q}
 + bbvi: black box variational inference
 + oscilate: frequency of hamiltonian dynamics
 + causal (BUGS)
