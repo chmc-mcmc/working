@@ -4,8 +4,8 @@ BeginPackage["sampler3`"]
 
 (* ---------- \:5bfc\:51fa\:63a5\:53e3\:7684 usage ---------- *)
 hmc::usage        = "hmc[U, Uq, Uqq, Dim, BURNIN, ITERATIONS, qinit]";
-Kp::usage         = "Kp[p, q, k]";
-K::usage          = "K[p, q, k]";
+Kp::usage         = "Kp[p, q]";
+K::usage          = "K[p, q]";
 U::usage          = "U[q]";
 Uq::usage         = "Uq[q]";
 Uqq::usage        = "Uqq[q]";
@@ -38,7 +38,7 @@ HIGHLEVEL   = 0.9;
 (* ---------- \:4e3b\:91c7\:6837\:5668 ---------- *)
 hmc[U_, Uq_, Uqq_, Dim_, BURNIN_, ITERATIONS_, qinit_] := Module[{
 qAll, pAll, UE, ES, Utotal, Ktotal, dq, hi, lo,
-Htotal, Htotal1,Htotal2, s, S, AS, dt1, dt2, k, KtotalNew,
+Htotal, s, S, AS, KtotalNew,
 dt = dt0, p, q0, p0, alpha, q, j, bad, i,
 decayenergy = DECAYENERGY, decaydt = DECAYDT, ii = 1,
 QS = ConstantArray[0, {PARTICLES (ITERATIONS - BURNIN), Dim}]
@@ -51,22 +51,12 @@ qAll = RandomVariate[NormalDistribution[0, 1], {PARTICLES, Dim}]
 
 Utotal = Sum[Apply[U, qAll[[i]]], {i, 1, PARTICLES}];
 Htotal = If[Utotal == 0, 1, 2 Utotal];
-Htotal1 = Htotal;
-dt1 = dt;
-Htotal2 = Htotal;
-dt2 = dt;
-k = 1;
 
 For[j = 1, j <= ITERATIONS, j++,
 pAll = RandomVariate[NormalDistribution[0, 1], {PARTICLES, Dim}];
 
-KtotalNew = Sum[Apply[K, {pAll[[i]], qAll[[i]], k}], {i, 1, PARTICLES}];
+KtotalNew = Sum[Apply[K, {pAll[[i]], qAll[[i]]}], {i, 1, PARTICLES}];
 Utotal    = Sum[Apply[U, qAll[[i]]], {i, 1, PARTICLES}];
-
-If[k == 1,
-Htotal = Htotal1; dt = dt1,
-Htotal = Htotal2; dt = dt2
-];
 
 Ktotal = Htotal - Utotal;
 pAll   = pAll Sqrt[Abs[Ktotal / KtotalNew]];
@@ -83,7 +73,7 @@ p0  = p;
 If[j <= BURNIN, UE = {Apply[U, q]}];
 
 Do[
-q  = q + dt Apply[Kp, {p, q, k}];
+q  = q + dt Apply[Kp, {p, q}];
 p  = p - dt Apply[Uq, q];
 
 If[outbnd[q],q = q0];
@@ -95,7 +85,7 @@ If[j <= BURNIN, ES = Append[ES, UE]];
 (* \:5355\:6b21\:5927\:6b65\:957f\:63d0\:6848 *)
 q  = q0;
 p  = p0;
-dq = Apply[Kp, {p, q, k}];
+dq = Apply[Kp, {p, q}];
 q  = q + Sqrt[STEPS] dt dq;
 
 If[outbnd[q], bad = True; q = q0];
@@ -118,7 +108,6 @@ s = Union[Flatten[Table[Ordering[ES[[i]], 1],  {i, 1, PARTICLES}]]];
 S = Union[Flatten[Table[Ordering[ES[[i]], -1], {i, 1, PARTICLES}]]];
 If[s == {1, STEPS + 1} && S == {1, STEPS + 1}, dt = dt (1 + decaydt)];
 If[s == {1}          && S == {STEPS + 1},    dt = dt/(1 + decaydt)];
-If[k == 1, dt1 = dt, dt2 = dt]
 ];
 
 (* \:6839\:636e\:63a5\:53d7\:7387\:8c03\:6574\:80fd\:91cf\:5e38\:6570 Htotal *)
@@ -133,38 +122,28 @@ If[hi,
 Htotal = (Htotal - Utotal) (1 + decayenergy) + Utotal,
 If[lo,
 Htotal = (Htotal - Utotal)/(1 + decayenergy) + Utotal]];
-
-If[k == 1, Htotal1 = Htotal, Htotal2 = Htotal]
 ];
 
 If[Mod[j, INTERVAL] == 0,
-Print[Row[{j, k, Ktotal, KtotalNew, Mean[AS], StandardDeviation[AS],
-Utotal, s, S, dt, Htotal, dt, hi, lo}, "     "]]
-];
-
-If[k == 1, k = 2, k = 1]
-
-];
-
-QS
-];
+Print[Row[{j, Ktotal, KtotalNew, Mean[AS], StandardDeviation[AS],
+Utotal, s, S, dt, Htotal, dt, hi, lo}, "     "]]]];
+QS];
 
 (* ---------- \:52a8\:80fd\:4e0e\:8d28\:91cf\:77e9\:9635 ---------- *)
-K[p_, q_, k_] := Module[{w},
-w = getW[q, Uqq, k];
+K[p_, q_] := Module[{w},
+w = getW[q, Uqq];
 1/2 p . Dot[w . p]
 ];
 
-Kp[p_, q_, k_] := Module[{w},
-w = getW[q, Uqq, k];
+Kp[p_, q_] := Module[{w},
+w = getW[q, Uqq];
 w . p
 ];
 
-getW[q_, Uqq_, k_] := Module[{w = Apply[Uqq, q], ve, e, lambda},
+getW[q_, Uqq_] := Module[{w = Apply[Uqq, q], ve, e, lambda},
 ve = Eigenvectors[w];
 e  = Eigenvalues[w];
-lambda  = Table[If[e[[j]] == 0, 0,
-If[k == 1, 1, Sign[e[[j]]]] / Sqrt[Abs[e[[j]]]]],
+lambda  = Table[If[e[[j]] == 0, 0,Sign[e[[j]]]] / Sqrt[Abs[e[[j]]]],
 {j, 1, Length[e]}];
 Transpose[ve] . DiagonalMatrix[lambda] . ve
 ];
